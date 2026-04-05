@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Study Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <!-- Floating background blobs -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+
+  <div class="page-wrapper">
+
+    <!-- Header -->
+    <header class="site-header">
+      <div class="logo">
+        <span class="logo-icon">🎓</span>
+        <span class="logo-text">StudyAI</span>
+      </div>
+      <nav>
+        <a href="/" class="nav-link active">Predict</a>
+        <a href="/dashboard" class="nav-link">Dashboard</a>
+      </nav>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-badge">✨ AI-Powered School Performance Tracker</div>
+      <h1 class="hero-title">How are you performing <span class="highlight-pass">in school?</span></h1>
+      <p class="hero-subtitle">Add your subjects, marks and study hours — our ML model will predict your school performance instantly.</p>
+      <div class="accuracy-badge">
+        <span class="badge-dot"></span>
+        Model Accuracy: <strong>{{ accuracy }}%</strong>
+      </div>
+    </section>
+
+    <!-- Main Card -->
+    <main class="card-wrapper">
+      <div class="glass-card">
+
+        <div class="card-header">
+          <h2>📋 Performance Predictor</h2>
+          <p>Fill in your details to get your school performance prediction</p>
+        </div>
+
+        <form action="/predict" method="POST" class="pred-form" id="predForm">
+
+          <!-- Attendance (global) -->
+          <div class="global-field">
+            <label for="attendance">🏫 Overall Attendance <span class="field-hint">(%)</span></label>
+            <div class="input-wrap">
+              <input type="number" id="attendance" name="attendance"
+                     min="0" max="100" step="1"
+                     placeholder="e.g. 85"
+                     value="{{ attendance or '' }}" required>
+              <span class="input-unit">%</span>
+            </div>
+          </div>
+
+          <!-- Dynamic Subjects -->
+          <div class="section-label">
+            <span>📚 Subjects</span>
+            <span class="section-hint">Enter each subject with marks and study hours</span>
+          </div>
+
+          <!-- Column headers -->
+          <div class="subject-header-row">
+            <span>Subject Name</span>
+            <span>Marks <em>(0–100)</em></span>
+            <span>Study Hours <em>(per day)</em></span>
+            <span></span>
+          </div>
+
+          <div id="subjectList" class="subject-list"></div>
+
+          <button type="button" class="btn-add" onclick="addRow()">
+            ＋ Add Subject
+          </button>
+
+          <!-- Live averages display -->
+          <div class="avg-bar" id="avgBar" style="display:none">
+            <div class="avg-item">
+              <span class="avg-label">📊 Avg Marks</span>
+              <span class="avg-val" id="avgMarks">—</span>
+            </div>
+            <div class="avg-divider"></div>
+            <div class="avg-item">
+              <span class="avg-label">⏱ Avg Study Hours</span>
+              <span class="avg-val" id="avgHours">—</span>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-predict" id="submitBtn">
+            <span class="btn-text">🔮 Predict My School Performance</span>
+          </button>
+
+        </form>
+
+        <!-- Result Section -->
+        {% if prediction %}
+        <div class="result-wrap {{ 'result-pass' if prediction == 'Pass' else 'result-fail' }}" id="resultBanner">
+
+          <div class="result-top">
+            <div class="result-emoji">{{ '🎉' if prediction == 'Pass' else '📖' }}</div>
+            <div class="result-text">
+              <p class="result-label">Your School Performance Prediction</p>
+              <h2 class="result-value">{{ prediction }}</h2>
+              <p class="result-conf">Confidence: <strong>{{ confidence }}%</strong></p>
+            </div>
+          </div>
+
+          <div class="interpretation-box {{ 'interp-pass' if prediction == 'Pass' else 'interp-fail' }}">
+            {{ interpretation }}
+          </div>
+
+          {% if subject_triples %}
+          <div class="subject-summary">
+            <p class="summary-title">📝 Subjects Entered</p>
+            <div class="summary-table">
+              <div class="summary-row summary-head">
+                <span>Subject</span><span>Marks</span><span>Study Hrs</span>
+              </div>
+              {% for name, marks, hours in subject_triples %}
+              <div class="summary-row">
+                <span>{{ name }}</span>
+                <span><strong>{{ marks }}/100</strong></span>
+                <span>{{ hours }} hrs</span>
+              </div>
+              {% endfor %}
+              <div class="summary-row summary-avg">
+                <span>Average</span>
+                <span><strong>{{ avg_marks }}/100</strong></span>
+                <span>{{ avg_hours }} hrs</span>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
+        </div>
+        {% endif %}
+
+      </div><!-- /glass-card -->
+    </main>
+
+    <footer class="site-footer">
+      <p>Built with 💙 Flask · scikit-learn · Chart.js &nbsp;·&nbsp; <a href="/dashboard">View Dashboard →</a></p>
+    </footer>
+
+  </div>
+
+  <!-- Subject suggestions datalist -->
+  <datalist id="subjectSuggestions">
+    {% for s in subjects %}<option value="{{ s }}">{% endfor %}
+    <option value="Math"><option value="Science"><option value="Physics">
+    <option value="Chemistry"><option value="Biology"><option value="English">
+    <option value="History"><option value="Geography"><option value="Economics">
+    <option value="Computer Science"><option value="Hindi"><option value="Social Science">
+  </datalist>
+
+<script>
+let rowCount = 0;
+
+function addRow(defName = "", defMarks = "", defHours = "") {
+  rowCount++;
+  const id  = "row_" + rowCount;
+  const div = document.createElement("div");
+  div.className = "subject-row";
+  div.id = id;
+
+  div.innerHTML = `
+    <input type="text"   name="subject_name[]"  class="sr-name"  placeholder="e.g. Mathematics"
+           value="${defName}"  list="subjectSuggestions" autocomplete="off" oninput="recalc()" required>
+    <input type="number" name="subject_marks[]" class="sr-marks" placeholder="e.g. 78"
+           value="${defMarks}" min="0" max="100" step="1" oninput="recalc()" required>
+    <input type="number" name="subject_hours[]" class="sr-hours" placeholder="e.g. 2.5"
+           value="${defHours}" min="0" max="24" step="0.5" oninput="recalc()" required>
+    <button type="button" class="btn-remove" onclick="removeRow('${id}')" title="Remove">✕</button>
+  `;
+
+  document.getElementById("subjectList").appendChild(div);
+  // Trigger entrance animation
+  requestAnimationFrame(() => div.classList.add("row-visible"));
+  recalc();
+  updateRemove();
+}
+
+function removeRow(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add("row-exit");
+  setTimeout(() => { el.remove(); recalc(); updateRemove(); }, 240);
+}
+
+function updateRemove() {
+  const rows = document.querySelectorAll(".subject-row");
+  rows.forEach(r => {
+    const btn = r.querySelector(".btn-remove");
+    btn.disabled      = rows.length === 1;
+    btn.style.opacity = rows.length === 1 ? "0.25" : "1";
+  });
+}
+
+function recalc() {
+  const mInputs = document.querySelectorAll(".sr-marks");
+  const hInputs = document.querySelectorAll(".sr-hours");
+  const marks = [], hours = [];
+
+  mInputs.forEach(i => { const v = parseFloat(i.value); if (!isNaN(v)) marks.push(v); });
+  hInputs.forEach(i => { const v = parseFloat(i.value); if (!isNaN(v)) hours.push(v); });
+
+  const bar = document.getElementById("avgBar");
+  if (marks.length || hours.length) {
+    bar.style.display = "flex";
+    document.getElementById("avgMarks").textContent =
+      marks.length ? (marks.reduce((a,b)=>a+b,0)/marks.length).toFixed(1) + " / 100" : "—";
+    document.getElementById("avgHours").textContent =
+      hours.length ? (hours.reduce((a,b)=>a+b,0)/hours.length).toFixed(1) + " hrs" : "—";
+  } else {
+    bar.style.display = "none";
+  }
+}
+
+// Form submit guard
+document.getElementById("predForm").addEventListener("submit", function(e) {
+  if (!document.querySelector(".subject-row")) {
+    e.preventDefault(); alert("Please add at least one subject."); return;
+  }
+  const btn = document.getElementById("submitBtn");
+  btn.classList.add("loading");
+  btn.querySelector(".btn-text").textContent = "Analyzing…";
+});
+
+// Animate result banner in
+const banner = document.getElementById("resultBanner");
+if (banner) {
+  banner.style.opacity = "0";
+  banner.style.transform = "translateY(20px)";
+  requestAnimationFrame(() => {
+    banner.style.transition = "opacity .5s ease, transform .5s ease";
+    banner.style.opacity    = "1";
+    banner.style.transform  = "translateY(0)";
+  });
+  setTimeout(() => banner.scrollIntoView({ behavior: "smooth", block: "nearest" }), 150);
+}
+
+// Start with 1 row
+addRow();
+</script>
+</body>
+</html>

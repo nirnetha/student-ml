@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Study Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <div class="page-wrapper">
+
+    <!-- ── Header ── -->
+    <header class="site-header">
+      <div class="logo">
+        <span class="logo-icon">🎓</span>
+        <span class="logo-text">StudyAI</span>
+      </div>
+      <nav>
+        <a href="/" class="nav-link active">Predict</a>
+        <a href="/dashboard" class="nav-link">Dashboard</a>
+      </nav>
+    </header>
+
+    <!-- ── Hero ── -->
+    <section class="hero">
+      <div class="hero-badge">✨ AI-Powered Academic Tracker</div>
+      <h1 class="hero-title">How will you <span class="highlight-pass">perform</span> this semester?</h1>
+      <p class="hero-subtitle">Enter your study details and let our ML model predict your academic result.</p>
+      <div class="accuracy-badge">
+        <span class="badge-dot"></span>
+        Model Accuracy: <strong>{{ accuracy }}%</strong>
+      </div>
+    </section>
+
+    <!-- ── Card ── -->
+    <main class="card-wrapper">
+      <div class="card">
+        <div class="card-header">
+          <h2>📋 Performance Predictor</h2>
+          <p>Fill in your study details to get your prediction</p>
+        </div>
+
+        <form action="/predict" method="POST" class="pred-form" id="predForm">
+
+          <!-- Row 1: Study Hours + Attendance -->
+          <div class="form-row">
+            <div class="field-group">
+              <label for="study_hours">📖 Study Hours <span class="field-hint">per day</span></label>
+              <div class="input-wrap">
+                <input type="number" id="study_hours" name="study_hours"
+                       min="0" max="24" step="0.1"
+                       placeholder="e.g. 6.5"
+                       value="{{ study_hours or '' }}" required>
+                <span class="input-unit">hrs</span>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label for="attendance">🏫 Attendance <span class="field-hint">percentage</span></label>
+              <div class="input-wrap">
+                <input type="number" id="attendance" name="attendance"
+                       min="0" max="100" step="1"
+                       placeholder="e.g. 85"
+                       value="{{ attendance or '' }}" required>
+                <span class="input-unit">%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Subjects Section -->
+          <div class="section-label">
+            <span>📚 Subjects &amp; Marks</span>
+            <span class="section-hint">Add each subject and enter marks out of 100</span>
+          </div>
+
+          <div id="subjectList" class="subject-list">
+            <!-- Subject rows injected here by JS -->
+          </div>
+
+          <button type="button" class="btn-add-subject" id="addSubjectBtn" onclick="addSubjectRow()">
+            <span>＋</span> Add Subject
+          </button>
+
+          <div class="avg-display" id="avgDisplay" style="display:none">
+            <span class="avg-icon">📊</span>
+            Average Marks: <strong id="avgValue">—</strong>
+          </div>
+
+          <button type="submit" class="btn-predict" id="submitBtn">
+            <span class="btn-text">🔮 Predict My Result</span>
+          </button>
+
+        </form>
+
+        <!-- ── Result Banner ── -->
+        {% if prediction %}
+        <div class="result-banner {{ 'result-pass' if prediction == 'Pass' else 'result-fail' }}" id="resultBanner">
+          <div class="result-top">
+            <div class="result-emoji">{{ '🎉' if prediction == 'Pass' else '📖' }}</div>
+            <div>
+              <p class="result-label">Your Predicted Result</p>
+              <h3 class="result-value">{{ prediction }}</h3>
+              <p class="result-conf">Confidence: <strong>{{ confidence }}%</strong></p>
+            </div>
+          </div>
+
+          {% if subject_pairs %}
+          <div class="subject-summary">
+            <p class="summary-title">Subjects Entered</p>
+            <div class="summary-pills">
+              {% for name, marks in subject_pairs %}
+              <span class="pill">{{ name }}: <strong>{{ marks }}/100</strong></span>
+              {% endfor %}
+            </div>
+            <p class="avg-note">Average Marks Used: <strong>{{ avg_marks }}</strong></p>
+          </div>
+          {% endif %}
+
+          <p class="result-tip">
+            {% if prediction == 'Fail' %}
+            💡 Try increasing your study hours and attendance. Focus on low-scoring subjects!
+            {% else %}
+            ✨ Excellent! Keep up your consistency and you'll ace this semester.
+            {% endif %}
+          </p>
+        </div>
+        {% endif %}
+
+      </div><!-- /card -->
+    </main>
+
+    <footer class="site-footer">
+      <p>Built with 💙 using Flask · scikit-learn · Chart.js &nbsp;·&nbsp; <a href="/dashboard">View Dashboard →</a></p>
+    </footer>
+
+  </div>
+
+<script>
+// ── Subject suggestions ──────────────────────────────────────────────────────
+const knownSubjects = {{ subjects | tojson }};
+const allSubjects   = [...new Set([...knownSubjects, "Math","Science","English","History","Physics","Chemistry","Biology","Computer Science","Geography","Economics"])];
+
+let rowCount = 0;
+
+function addSubjectRow(defaultName = "", defaultMarks = "") {
+  rowCount++;
+  const id  = `row_${rowCount}`;
+  const row = document.createElement("div");
+  row.className = "subject-row";
+  row.id = id;
+  row.style.animation = "slideIn 0.28s ease";
+
+  row.innerHTML = `
+    <div class="subject-row-inner">
+      <div class="subject-name-wrap">
+        <input
+          type="text"
+          name="subject_name[]"
+          class="subject-name-input"
+          placeholder="Subject name (e.g. Math)"
+          value="${defaultName}"
+          list="subjectSuggestions"
+          autocomplete="off"
+          oninput="updateAvg()"
+          required
+        >
+      </div>
+      <div class="marks-wrap">
+        <input
+          type="number"
+          name="subject_marks[]"
+          class="subject-marks-input"
+          placeholder="Marks (0–100)"
+          value="${defaultMarks}"
+          min="0" max="100" step="1"
+          oninput="updateAvg()"
+          required
+        >
+        <span class="marks-unit">/ 100</span>
+      </div>
+      <button type="button" class="btn-remove" onclick="removeRow('${id}')" title="Remove subject">✕</button>
+    </div>
+  `;
+  document.getElementById("subjectList").appendChild(row);
+  updateAvg();
+  updateRemoveButtons();
+}
+
+function removeRow(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.style.animation = "slideOut 0.22s ease forwards";
+    setTimeout(() => { el.remove(); updateAvg(); updateRemoveButtons(); }, 220);
+  }
+}
+
+function updateRemoveButtons() {
+  const rows = document.querySelectorAll(".subject-row");
+  rows.forEach(r => {
+    const btn = r.querySelector(".btn-remove");
+    // Always show remove button but disable if only 1 row
+    btn.disabled = rows.length === 1;
+    btn.style.opacity = rows.length === 1 ? "0.3" : "1";
+  });
+}
+
+function updateAvg() {
+  const markInputs = document.querySelectorAll(".subject-marks-input");
+  const values = [];
+  markInputs.forEach(inp => {
+    const v = parseFloat(inp.value);
+    if (!isNaN(v) && inp.value.trim() !== "") values.push(v);
+  });
+
+  const display = document.getElementById("avgDisplay");
+  const avgVal  = document.getElementById("avgValue");
+
+  if (values.length > 0) {
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    avgVal.textContent = avg.toFixed(1) + " / 100";
+    display.style.display = "flex";
+  } else {
+    display.style.display = "none";
+  }
+}
+
+// Form validation before submit
+document.getElementById("predForm").addEventListener("submit", function(e) {
+  const rows = document.querySelectorAll(".subject-row");
+  if (rows.length === 0) {
+    e.preventDefault();
+    alert("Please add at least one subject.");
+    return;
+  }
+  const btn = document.getElementById("submitBtn");
+  btn.classList.add("loading");
+  btn.querySelector(".btn-text").textContent = "Analyzing…";
+});
+
+// Animate result banner
+const banner = document.getElementById("resultBanner");
+if (banner) {
+  banner.style.opacity = 0;
+  banner.style.transform = "translateY(18px)";
+  requestAnimationFrame(() => {
+    banner.style.transition = "opacity 0.5s ease, transform 0.5s ease";
+    banner.style.opacity    = 1;
+    banner.style.transform  = "translateY(0)";
+  });
+  setTimeout(() => banner.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
+}
+
+// Add first row on load
+addSubjectRow();
+</script>
+
+<!-- Datalist for subject suggestions -->
+<datalist id="subjectSuggestions">
+  {% for s in subjects %}<option value="{{ s }}">{% endfor %}
+  <option value="Math"><option value="Science"><option value="Physics">
+  <option value="Chemistry"><option value="Biology"><option value="English">
+  <option value="History"><option value="Geography"><option value="Economics">
+  <option value="Computer Science">
+</datalist>
+
+</body>
+</html>

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard – AI Study Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+
+  <div class="page-wrapper">
+
+    <!-- Header -->
+    <header class="site-header">
+      <div class="logo">
+        <span class="logo-icon">🎓</span>
+        <span class="logo-text">StudyAI</span>
+      </div>
+      <nav>
+        <a href="/" class="nav-link">Predict</a>
+        <a href="/dashboard" class="nav-link active">Dashboard</a>
+      </nav>
+    </header>
+
+    <!-- Hero -->
+    <section class="hero" style="margin-bottom:1.5rem">
+      <div class="hero-badge">📊 Analytics &amp; Insights</div>
+      <h1 class="hero-title" style="font-size:clamp(1.8rem,4vw,2.6rem)">
+        Your School <span class="highlight-pass">Performance</span> Dashboard
+      </h1>
+      <p class="hero-subtitle">See your subject-wise marks, study hours and prediction history at a glance.</p>
+    </section>
+
+    <!-- Stats Row -->
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card" id="cardTotal">
+        <span class="stat-emoji">📋</span>
+        <span class="stat-num" id="statTotal">–</span>
+        <span class="stat-label">Total Records</span>
+      </div>
+      <div class="stat-card stat-clickable" id="cardPass" onclick="togglePopup('pass')">
+        <span class="stat-emoji">✅</span>
+        <span class="stat-num" id="statPass">–</span>
+        <span class="stat-label">Predicted Pass</span>
+        <span class="stat-hint">click to see subjects</span>
+      </div>
+      <div class="stat-card stat-clickable" id="cardFail" onclick="togglePopup('fail')">
+        <span class="stat-emoji">⚠️</span>
+        <span class="stat-num" id="statFail">–</span>
+        <span class="stat-label">Predicted Fail</span>
+        <span class="stat-hint">click to see subjects</span>
+      </div>
+      <div class="stat-card" id="cardRate">
+        <span class="stat-emoji">🎯</span>
+        <span class="stat-num" id="statRate">–</span>
+        <span class="stat-label">Pass Rate</span>
+      </div>
+    </div>
+
+    <!-- Clickable Popups -->
+    <div class="popup-panel" id="popupPass" style="display:none">
+      <div class="popup-header">
+        <span>✅ Subjects Predicted to Pass</span>
+        <button onclick="closePopup('pass')" class="popup-close">✕</button>
+      </div>
+      <div class="popup-body" id="popupPassBody">—</div>
+    </div>
+    <div class="popup-panel popup-fail-panel" id="popupFail" style="display:none">
+      <div class="popup-header">
+        <span>⚠️ Subjects Predicted to Fail</span>
+        <button onclick="closePopup('fail')" class="popup-close">✕</button>
+      </div>
+      <div class="popup-body" id="popupFailBody">—</div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="charts-grid" id="chartsGrid">
+
+      <div class="glass-card chart-card wide">
+        <h3 class="chart-title">📝 Subject vs Average Marks</h3>
+        <p class="chart-desc">Average marks scored per subject across all predictions</p>
+        <div class="chart-box"><canvas id="marksChart"></canvas></div>
+      </div>
+
+      <div class="glass-card chart-card wide">
+        <h3 class="chart-title">⏱ Subject vs Study Hours</h3>
+        <p class="chart-desc">Average daily study hours per subject</p>
+        <div class="chart-box"><canvas id="hoursChart"></canvas></div>
+      </div>
+
+      <div class="glass-card chart-card">
+        <h3 class="chart-title">✅ Pass vs Fail</h3>
+        <p class="chart-desc">Overall prediction distribution</p>
+        <div class="chart-box chart-box-sm"><canvas id="pieChart"></canvas></div>
+      </div>
+
+      <div class="glass-card chart-card">
+        <h3 class="chart-title">📚 Subject-wise Pass / Fail</h3>
+        <p class="chart-desc">How each subject performed in predictions</p>
+        <div class="chart-box chart-box-sm"><canvas id="subjectChart"></canvas></div>
+      </div>
+
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state glass-card" id="emptyState" style="display:none">
+      <div class="empty-icon">📊</div>
+      <h3>No data yet</h3>
+      <p>Head to the Predict page, enter your subjects and run a prediction — charts will appear here!</p>
+      <a href="/" class="btn-predict" style="display:inline-flex;margin-top:1.4rem;width:auto;padding:.75rem 1.8rem">
+        Make a Prediction →
+      </a>
+    </div>
+
+    <footer class="site-footer">
+      <p>Built with 💙 Flask · scikit-learn · Chart.js &nbsp;·&nbsp; <a href="/">← Back to Predictor</a></p>
+    </footer>
+
+  </div><!-- /page-wrapper -->
+
+<script>
+// Pastel palette matching the UI theme
+const COLORS = {
+  purple:  "rgba(139,92,246,0.82)",
+  blue:    "rgba(99,102,241,0.82)",
+  pink:    "rgba(236,72,153,0.75)",
+  mint:    "rgba(52,211,153,0.82)",
+  amber:   "rgba(245,158,11,0.82)",
+  red:     "rgba(244,63,94,0.82)",
+  sky:     "rgba(56,189,248,0.82)",
+  peach:   "rgba(251,146,60,0.82)",
+};
+
+const PASS_CLR = COLORS.mint;
+const FAIL_CLR = COLORS.red;
+const BAR_PALETTE = [COLORS.purple, COLORS.blue, COLORS.sky, COLORS.amber, COLORS.pink, COLORS.peach, COLORS.mint];
+
+Chart.defaults.font.family  = "'DM Sans', sans-serif";
+Chart.defaults.font.size    = 12;
+Chart.defaults.color        = "#6b7280";
+
+const gridColor = "rgba(0,0,0,0.05)";
+
+function barOpts(xLabel, yLabel, max) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: {
+        label: ctx => ` ${ctx.parsed.y} ${yLabel === "Marks" ? "/ 100" : "hrs/day"}`
+      }}
+    },
+    scales: {
+      x: {
+        title: { display: true, text: xLabel, color: "#6b7280", font: { weight: "600" } },
+        grid:  { display: false },
+        ticks: { color: "#374151" },
+      },
+      y: {
+        title: { display: true, text: yLabel, color: "#6b7280", font: { weight: "600" } },
+        grid:  { color: gridColor },
+        beginAtZero: true,
+        max: max || undefined,
+        ticks: { color: "#6b7280" },
+      }
+    }
+  };
+}
+
+// Store for popup data
+let passSubjects = [], failSubjects = [];
+
+function togglePopup(type) {
+  const popupPass = document.getElementById("popupPass");
+  const popupFail = document.getElementById("popupFail");
+  if (type === "pass") {
+    const isOpen = popupPass.style.display !== "none";
+    popupPass.style.display = isOpen ? "none" : "block";
+    popupFail.style.display = "none";
+  } else {
+    const isOpen = popupFail.style.display !== "none";
+    popupFail.style.display = isOpen ? "none" : "block";
+    popupPass.style.display = "none";
+  }
+}
+function closePopup(type) {
+  document.getElementById(type === "pass" ? "popupPass" : "popupFail").style.display = "none";
+}
+
+async function loadDashboard() {
+  const res  = await fetch("/api/chart-data");
+  const data = await res.json();
+  const recs = data.records;
+
+  if (!recs || recs.length === 0) {
+    document.getElementById("chartsGrid").style.display = "none";
+    document.getElementById("statsRow").style.display   = "none";
+    document.getElementById("emptyState").style.display = "block";
+    return;
+  }
+
+  // Stats
+  document.getElementById("statTotal").textContent = recs.length;
+  document.getElementById("statPass").textContent  = data.pass_count;
+  document.getElementById("statFail").textContent  = data.fail_count;
+  const rate = Math.round(data.pass_count / recs.length * 100);
+  document.getElementById("statRate").textContent  = rate + "%";
+
+  // Populate popup bodies
+  passSubjects = data.pass_subjects || [];
+  failSubjects = data.fail_subjects || [];
+
+  document.getElementById("popupPassBody").innerHTML = passSubjects.length
+    ? passSubjects.map(s => `<span class="popup-pill pill-pass">${s}</span>`).join("")
+    : "<em>None</em>";
+  document.getElementById("popupFailBody").innerHTML = failSubjects.length
+    ? failSubjects.map(s => `<span class="popup-pill pill-fail">${s}</span>`).join("")
+    : "<em>None</em>";
+
+  // Animate stat cards
+  document.querySelectorAll(".stat-card").forEach((el, i) => {
+    el.style.animationDelay = `${i * 0.08}s`;
+    el.classList.add("fade-in");
+  });
+
+  const ss       = data.subject_stats;
+  const subjects = Object.keys(ss);
+  const bgColors = subjects.map((_, i) => BAR_PALETTE[i % BAR_PALETTE.length]);
+
+  // 1. Subject vs Avg Marks (bar)
+  new Chart(document.getElementById("marksChart"), {
+    type: "bar",
+    data: {
+      labels: subjects,
+      datasets: [{
+        label: "Avg Marks",
+        data: subjects.map(s => ss[s].avg_marks),
+        backgroundColor: bgColors,
+        borderRadius: 8,
+        borderSkipped: false,
+      }]
+    },
+    options: barOpts("Subject", "Marks", 100),
+  });
+
+  // 2. Subject vs Avg Study Hours (bar)
+  new Chart(document.getElementById("hoursChart"), {
+    type: "bar",
+    data: {
+      labels: subjects,
+      datasets: [{
+        label: "Avg Study Hours",
+        data: subjects.map(s => ss[s].avg_hours),
+        backgroundColor: bgColors,
+        borderRadius: 8,
+        borderSkipped: false,
+      }]
+    },
+    options: barOpts("Subject", "Hours"),
+  });
+
+  // 3. Pass vs Fail pie
+  new Chart(document.getElementById("pieChart"), {
+    type: "pie",
+    data: {
+      labels: ["Pass", "Fail"],
+      datasets: [{
+        data: [data.pass_count, data.fail_count],
+        backgroundColor: [PASS_CLR, FAIL_CLR],
+        borderColor: ["#fff","#fff"],
+        borderWidth: 3,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { padding: 18, font: { size: 13, weight: "600" }, color: "#374151" }
+        },
+        tooltip: { callbacks: {
+          label: ctx => ` ${ctx.label}: ${ctx.parsed} records`
+        }}
+      }
+    }
+  });
+
+  // 4. Subject-wise pass/fail grouped bar
+  new Chart(document.getElementById("subjectChart"), {
+    type: "bar",
+    data: {
+      labels: subjects,
+      datasets: [
+        {
+          label: "Pass",
+          data: subjects.map(s => ss[s].Pass || 0),
+          backgroundColor: PASS_CLR,
+          borderRadius: 6,
+          borderSkipped: false,
+        },
+        {
+          label: "Fail",
+          data: subjects.map(s => ss[s].Fail || 0),
+          backgroundColor: FAIL_CLR,
+          borderRadius: 6,
+          borderSkipped: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "top",
+          labels: { padding: 14, font: { size: 12, weight: "600" }, color: "#374151" }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: "Subject", color: "#6b7280", font: { weight: "600" } },
+          grid: { display: false },
+          ticks: { color: "#374151" },
+        },
+        y: {
+          title: { display: true, text: "Count", color: "#6b7280", font: { weight: "600" } },
+          grid: { color: gridColor },
+          beginAtZero: true,
+          ticks: { stepSize: 1, color: "#6b7280" },
+        }
+      }
+    }
+  });
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

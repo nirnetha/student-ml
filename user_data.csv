@@ -1,0 +1,8 @@
+Timestamp,StudyHours,Attendance,Marks,Subject,Prediction
+2026-04-05 16:15:01,4.0,78.0,50.0,History,Fail
+2026-04-05 16:35:25,4.0,89.0,70.0,Math,Pass
+2026-04-05 16:35:25,4.0,89.0,89.0,English,Pass
+2026-04-05 16:35:25,4.0,89.0,67.0,History,Pass
+2026-04-05 16:47:49,1.0,89.0,77.0,English,Pass
+2026-04-05 16:47:49,3.0,89.0,67.0,Math,Pass
+2026-04-05 16:47:49,2.0,89.0,90.0,History,Pass
